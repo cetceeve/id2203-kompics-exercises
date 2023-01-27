@@ -30,11 +30,12 @@ import se.kth.edx.id2203.core.Ports._
 import se.kth.edx.id2203.templates.EPFD._
 import se.kth.edx.id2203.validation._
 import se.sics.kompics.network._
-import se.sics.kompics.sl.{ Init, _ }
-import se.sics.kompics.timer.{ ScheduleTimeout, Timeout, Timer }
-import se.sics.kompics.{ KompicsEvent, Start, ComponentDefinition => _, Port => _ }
+import se.sics.kompics.sl.{Init, _}
+import se.sics.kompics.timer.{ScheduleTimeout, Timeout, Timer}
+import se.sics.kompics.{KompicsEvent, Start, ComponentDefinition => _, Port => _}
 
 import scala.collection.mutable._
+import scala.language.postfixOps
 
 //Define initialization event
 object EPFD {
@@ -76,13 +77,18 @@ class EPFD(epfdInit: Init[EPFD]) extends ComponentDefinition {
   ctrl uponEvent {
     case _: Start => {
       /* WRITE YOUR CODE HERE */
+      alive = topology.to(collection.mutable.Set)
+      suspected = Set()
+      period = delta
+      startTimer(period)
     }
   }
 
   timer uponEvent {
     case CheckTimeout(_) => {
-      if (!alive.intersect(suspected).isEmpty) {
+      if (alive.intersect(suspected).nonEmpty) {
         /* WRITE YOUR CODE HERE */
+        period = period + delta
       }
 
       seqnum = seqnum + 1;
@@ -90,7 +96,9 @@ class EPFD(epfdInit: Init[EPFD]) extends ComponentDefinition {
       for (p <- topology) {
         if (!alive.contains(p) && !suspected.contains(p)) {
 
-         /* WRITE YOUR CODE HERE */
+          /* WRITE YOUR CODE HERE */
+          suspected -= p;
+          trigger(Suspect(p) -> epfd);
 
         } else if (alive.contains(p) && suspected.contains(p)) {
           suspected = suspected - p;
@@ -107,12 +115,12 @@ class EPFD(epfdInit: Init[EPFD]) extends ComponentDefinition {
   pLink uponEvent {
     case PL_Deliver(src, HeartbeatRequest(seq)) => {
          /* WRITE YOUR CODE HERE */
+      trigger(PL_Send(src, HeartbeatReply(seq)) -> pLink)
 
     }
     case PL_Deliver(src, HeartbeatReply(seq)) => {
-        alive = alive + src
-         /* WRITE YOUR CODE HERE */
-      
+      /* WRITE YOUR CODE HERE */
+      if (seq == seqnum || suspected.contains(src)) alive = alive + src
     }
   }
 };
